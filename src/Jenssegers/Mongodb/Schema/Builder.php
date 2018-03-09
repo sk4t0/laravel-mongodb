@@ -116,6 +116,23 @@ class Builder extends \Illuminate\Database\Schema\Builder
     }
 
     /**
+     * Get the first record matching the attributes or create it.
+     *
+     * @param  array  $attributes
+     * @return \Illuminate\Database\Eloquent\Model
+     */
+    public function firstOrCreate(array $attributes)
+    {
+        if (! is_null($instance = $this->where($attributes)->first())) {
+            return $instance;
+        }
+
+        $instance = $this->create($attributes);
+
+        return $instance;
+    }
+
+    /**
      * Drop a collection from the schema.
      *
      * @param  string  $collection
