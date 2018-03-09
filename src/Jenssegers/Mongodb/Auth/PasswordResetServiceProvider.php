@@ -1,6 +1,4 @@
-<?php
-
-namespace Jenssegers\Mongodb\Auth;
+<?php namespace Jenssegers\Mongodb\Auth;
 
 use Illuminate\Auth\Passwords\PasswordResetServiceProvider as BasePasswordResetServiceProvider;
 
@@ -30,7 +28,9 @@ class PasswordResetServiceProvider extends BasePasswordResetServiceProvider
     }
 
     /**
-     * @inheritdoc
+     * Register the password broker instance.
+     *
+     * @return void
      */
     protected function registerPasswordBroker()
     {

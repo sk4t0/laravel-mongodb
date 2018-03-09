@@ -1,7 +1,6 @@
-<?php
+<?php namespace Jenssegers\Mongodb\Schema;
 
-namespace Jenssegers\Mongodb\Schema;
-
+use Closure;
 use Illuminate\Database\Connection;
 
 class Blueprint extends \Illuminate\Database\Schema\Blueprint
@@ -9,14 +8,14 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     /**
      * The MongoConnection object for this blueprint.
      *
-     * @var \Jenssegers\Mongodb\Connection
+     * @var MongoConnection
      */
     protected $connection;
 
     /**
      * The MongoCollection object for this blueprint.
      *
-     * @var \Jenssegers\Mongodb\Collection|\MongoDB\Collection
+     * @var MongoCollection
      */
     protected $collection;
 
@@ -28,19 +27,26 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     protected $columns = [];
 
     /**
-     * @inheritdoc
+     * Create a new schema blueprint.
+     *
+     * @param  string   $table
+     * @param  Closure  $callback
      */
     public function __construct(Connection $connection, $collection)
     {
         $this->connection = $connection;
 
-        $this->collection = $this->connection->getCollection($collection);
+        $this->collection = $connection->getCollection($collection);
     }
 
     /**
-     * @inheritdoc
+     * Specify an index for the collection.
+     *
+     * @param  string|array  $columns
+     * @param  array         $options
+     * @return Blueprint
      */
-    public function index($columns = null, $name = null, $algorithm = null, $options = [])
+    public function index($columns = null, $options = [])
     {
         $columns = $this->fluent($columns);
 
@@ -56,25 +62,44 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
             $columns = $transform;
         }
 
-        if ($name !== null) {
-            $options['name'] = $name;
-        }
-
         $this->collection->createIndex($columns, $options);
 
         return $this;
     }
 
     /**
-     * @inheritdoc
+     * Add the proper columns for a polymorphic table.
+     *
+     * @param  string  $name
+     * @param  string|null  $indexName
+     * @return void
      */
-    public function primary($columns = null, $name = null, $algorithm = null, $options = [])
+    public function morphs($name, $indexName = null)
     {
-        return $this->unique($columns, $name, $algorithm, $options);
+        $this->unsignedInteger("{$name}_id");
+
+        $this->string("{$name}_type");
+
+        parent::index(["{$name}_id", "{$name}_type"], $indexName);
     }
 
     /**
-     * @inheritdoc
+     * Specify the primary key(s) for the table.
+     *
+     * @param  string|array  $columns
+     * @param  array         $options
+     * @return \Illuminate\Support\Fluent
+     */
+    public function primary($columns = null, $options = [])
+    {
+        return $this->unique($columns, $options);
+    }
+
+    /**
+     * Indicate that the given index should be dropped.
+     *
+     * @param  string|array  $columns
+     * @return Blueprint
      */
     public function dropIndex($columns = null)
     {
@@ -100,15 +125,19 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     }
 
     /**
-     * @inheritdoc
+     * Specify a unique index for the collection.
+     *
+     * @param  string|array  $columns
+     * @param  array         $options
+     * @return Blueprint
      */
-    public function unique($columns = null, $name = null, $algorithm = null, $options = [])
+    public function unique($columns = null, $options = [])
     {
         $columns = $this->fluent($columns);
 
         $options['unique'] = true;
 
-        $this->index($columns, $name, $algorithm, $options);
+        $this->index($columns, $options);
 
         return $this;
     }
@@ -116,14 +145,14 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     /**
      * Specify a non blocking index for the collection.
      *
-     * @param  string|array $columns
+     * @param  string|array  $columns
      * @return Blueprint
      */
     public function background($columns = null)
     {
         $columns = $this->fluent($columns);
 
-        $this->index($columns, null, null, ['background' => true]);
+        $this->index($columns, ['background' => true]);
 
         return $this;
     }
@@ -131,8 +160,8 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     /**
      * Specify a sparse index for the collection.
      *
-     * @param  string|array $columns
-     * @param  array $options
+     * @param  string|array  $columns
+     * @param  array         $options
      * @return Blueprint
      */
     public function sparse($columns = null, $options = [])
@@ -141,32 +170,7 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
 
         $options['sparse'] = true;
 
-        $this->index($columns, null, null, $options);
-
-        return $this;
-    }
-
-    /**
-     * Specify a geospatial index for the collection.
-     *
-     * @param  string|array $columns
-     * @param  string $index
-     * @param  array $options
-     * @return Blueprint
-     */
-    public function geospatial($columns = null, $index = '2d', $options = [])
-    {
-        if ($index == '2d' || $index == '2dsphere') {
-            $columns = $this->fluent($columns);
-
-            $columns = array_flip($columns);
-
-            foreach ($columns as $column => $value) {
-                $columns[$column] = $index;
-            }
-
-            $this->index($columns, null, null, $options);
-        }
+        $this->index($columns, $options);
 
         return $this;
     }
@@ -175,21 +179,23 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
      * Specify the number of seconds after wich a document should be considered expired based,
      * on the given single-field index containing a date.
      *
-     * @param  string|array $columns
-     * @param  int $seconds
+     * @param  string|array  $columns
+     * @param  int           $seconds
      * @return Blueprint
      */
     public function expire($columns, $seconds)
     {
         $columns = $this->fluent($columns);
 
-        $this->index($columns, null, null, ['expireAfterSeconds' => $seconds]);
+        $this->index($columns, ['expireAfterSeconds' => $seconds]);
 
         return $this;
     }
 
     /**
-     * @inheritdoc
+     * Indicate that the table needs to be created.
+     *
+     * @return bool
      */
     public function create()
     {
@@ -202,7 +208,9 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     }
 
     /**
-     * @inheritdoc
+     * Indicate that the collection should be dropped.
+     *
+     * @return bool
      */
     public function drop()
     {
@@ -210,7 +218,12 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     }
 
     /**
-     * @inheritdoc
+     * Add a new column to the blueprint.
+     *
+     * @param  string  $type
+     * @param  string  $name
+     * @param  array   $parameters
+     * @return Blueprint
      */
     public function addColumn($type, $name, array $parameters = [])
     {
@@ -220,28 +233,9 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     }
 
     /**
-     * Specify a sparse and unique index for the collection.
-     *
-     * @param  string|array $columns
-     * @param  array $options
-     * @return Blueprint
-     */
-    public function sparse_and_unique($columns = null, $options = [])
-    {
-        $columns = $this->fluent($columns);
-
-        $options['sparse'] = true;
-        $options['unique'] = true;
-
-        $this->index($columns, null, null, $options);
-
-        return $this;
-    }
-
-    /**
      * Allow fluent columns.
      *
-     * @param  string|array $columns
+     * @param  string|array  $columns
      * @return string|array
      */
     protected function fluent($columns = null)
@@ -258,8 +252,6 @@ class Blueprint extends \Illuminate\Database\Schema\Blueprint
     /**
      * Allows the use of unsupported schema methods.
      *
-     * @param $method
-     * @param $args
      * @return Blueprint
      */
     public function __call($method, $args)

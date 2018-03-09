@@ -1,6 +1,4 @@
-<?php
-
-namespace Jenssegers\Mongodb\Relations;
+<?php namespace Jenssegers\Mongodb\Relations;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasOne as EloquentHasOne;
@@ -8,23 +6,34 @@ use Illuminate\Database\Eloquent\Relations\HasOne as EloquentHasOne;
 class HasOne extends EloquentHasOne
 {
     /**
-     * Get the key for comparing against the parent key in "has" query.
+     * Add the constraints for a relationship count query.
      *
-     * @return string
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder  $parent
+     * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function getForeignKeyName()
+    public function getRelationCountQuery(Builder $query, Builder $parent)
     {
-        return $this->foreignKey;
+        $foreignKey = $this->getHasCompareKey();
+
+        return $query->select($this->getHasCompareKey())->where($this->getHasCompareKey(), 'exists', true);
     }
 
     /**
-     * Get the key for comparing against the parent key in "has" query.
+     * Add the constraints for a relationship query.
      *
-     * @return string
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  \Illuminate\Database\Eloquent\Builder  $parent
+     * @param  array|mixed $columns
+     * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function getHasCompareKey()
+    public function getRelationQuery(Builder $query, Builder $parent, $columns = ['*'])
     {
-        return $this->getForeignKeyName();
+        $query->select($columns);
+
+        $key = $this->wrap($this->getQualifiedParentKeyName());
+
+        return $query->where($this->getHasCompareKey(), 'exists', true);
     }
 
     /**
@@ -34,47 +43,6 @@ class HasOne extends EloquentHasOne
      */
     public function getPlainForeignKey()
     {
-        return $this->getForeignKeyName();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
-    {
-        $foreignKey = $this->getForeignKeyName();
-
-        return $query->select($foreignKey)->where($foreignKey, 'exists', true);
-    }
-
-    /**
-     * Add the constraints for a relationship count query.
-     *
-     * @param  Builder $query
-     * @param  Builder $parent
-     * @return Builder
-     */
-    public function getRelationCountQuery(Builder $query, Builder $parent)
-    {
-        $foreignKey = $this->getForeignKeyName();
-
-        return $query->select($foreignKey)->where($foreignKey, 'exists', true);
-    }
-
-    /**
-     * Add the constraints for a relationship query.
-     *
-     * @param  Builder $query
-     * @param  Builder $parent
-     * @param  array|mixed $columns
-     * @return Builder
-     */
-    public function getRelationQuery(Builder $query, Builder $parent, $columns = ['*'])
-    {
-        $query->select($columns);
-
-        $key = $this->wrap($this->getQualifiedParentKeyName());
-
-        return $query->where($this->getForeignKeyName(), 'exists', true);
+        return $this->getForeignKey();
     }
 }

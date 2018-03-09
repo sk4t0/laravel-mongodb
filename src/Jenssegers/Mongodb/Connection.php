@@ -1,13 +1,8 @@
-<?php
+<?php namespace Jenssegers\Mongodb;
 
-namespace Jenssegers\Mongodb;
-
-use Illuminate\Database\Connection as BaseConnection;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
 use MongoDB\Client;
 
-class Connection extends BaseConnection
+class Connection extends \Illuminate\Database\Connection
 {
     /**
      * The MongoDB database handler.
@@ -26,7 +21,7 @@ class Connection extends BaseConnection
     /**
      * Create a new database connection instance.
      *
-     * @param  array $config
+     * @param  array   $config
      */
     public function __construct(array $config)
     {
@@ -36,7 +31,7 @@ class Connection extends BaseConnection
         $dsn = $this->getDsn($config);
 
         // You can pass options directly to the MongoDB constructor
-        $options = Arr::get($config, 'options', []);
+        $options = array_get($config, 'options', []);
 
         // Create the connection
         $this->connection = $this->createConnection($dsn, $config, $options);
@@ -45,21 +40,29 @@ class Connection extends BaseConnection
         $this->db = $this->connection->selectDatabase($config['database']);
 
         $this->useDefaultPostProcessor();
+    }
 
-        $this->useDefaultSchemaGrammar();
-
-        $this->useDefaultQueryGrammar();
+    /**
+     * Get the default post processor instance.
+     *
+     * @return Query\Processor
+     */
+    protected function getDefaultPostProcessor()
+    {
+        return new Query\Processor;
     }
 
     /**
      * Begin a fluent query against a database collection.
      *
-     * @param  string $collection
+     * @param  string  $collection
      * @return Query\Builder
      */
     public function collection($collection)
     {
-        $query = new Query\Builder($this, $this->getPostProcessor());
+        $processor = $this->getPostProcessor();
+
+        $query = new Query\Builder($this, $processor);
 
         return $query->from($collection);
     }
@@ -67,7 +70,7 @@ class Connection extends BaseConnection
     /**
      * Begin a fluent query against a database collection.
      *
-     * @param  string $table
+     * @param  string  $table
      * @return Query\Builder
      */
     public function table($table)
@@ -78,7 +81,7 @@ class Connection extends BaseConnection
     /**
      * Get a MongoDB collection.
      *
-     * @param  string $name
+     * @param  string   $name
      * @return Collection
      */
     public function getCollection($name)
@@ -87,7 +90,9 @@ class Connection extends BaseConnection
     }
 
     /**
-     * @inheritdoc
+     * Get a schema builder instance for the connection.
+     *
+     * @return Schema\Builder
      */
     public function getSchemaBuilder()
     {
@@ -117,10 +122,10 @@ class Connection extends BaseConnection
     /**
      * Create a new MongoDB connection.
      *
-     * @param  string $dsn
-     * @param  array $config
-     * @param  array $options
-     * @return \MongoDB\Client
+     * @param  string  $dsn
+     * @param  array   $config
+     * @param  array   $options
+     * @return MongoDB
      */
     protected function createConnection($dsn, array $config, array $options)
     {
@@ -143,7 +148,7 @@ class Connection extends BaseConnection
     }
 
     /**
-     * @inheritdoc
+     * Disconnect from the underlying MongoDB connection.
      */
     public function disconnect()
     {
@@ -151,74 +156,41 @@ class Connection extends BaseConnection
     }
 
     /**
-     * Determine if the given configuration array has a UNIX socket value.
-     *
-     * @param  array  $config
-     * @return bool
-     */
-    protected function hasDsnString(array $config)
-    {
-        return isset($config['dsn']) && ! empty($config['dsn']);
-    }
-
-    /**
-     * Get the DSN string for a socket configuration.
-     *
-     * @param  array  $config
-     * @return string
-     */
-    protected function getDsnString(array $config)
-    {
-        $dsn_string = $config['dsn'];
-
-        if (Str::contains($dsn_string, 'mongodb://')) {
-            $dsn_string = Str::replaceFirst('mongodb://', '', $dsn_string);
-        }
-
-        $dsn_string = rawurlencode($dsn_string);
-
-        return "mongodb://{$dsn_string}";
-    }
-
-    /**
-     * Get the DSN string for a host / port configuration.
-     *
-     * @param  array  $config
-     * @return string
-     */
-    protected function getHostDsn(array $config)
-    {
-        // Treat host option as array of hosts
-        $hosts = is_array($config['host']) ? $config['host'] : [$config['host']];
-
-        foreach ($hosts as &$host) {
-            // Check if we need to add a port to the host
-            if (strpos($host, ':') === false && !empty($config['port'])) {
-                $host = $host . ':' . $config['port'];
-            }
-        }
-
-        // Check if we want to authenticate against a specific database.
-        $auth_database = isset($config['options']) && !empty($config['options']['database']) ? $config['options']['database'] : null;
-
-        return 'mongodb://' . implode(',', $hosts) . ($auth_database ? '/' . $auth_database : '');
-    }
-
-    /**
      * Create a DSN string from a configuration.
      *
-     * @param  array $config
+     * @param  array   $config
      * @return string
      */
     protected function getDsn(array $config)
     {
-        return $this->hasDsnString($config)
-            ? $this->getDsnString($config)
-            : $this->getHostDsn($config);
+        // First we will create the basic DSN setup as well as the port if it is in
+        // in the configuration options. This will give us the basic DSN we will
+        // need to establish the MongoDB and return them back for use.
+        extract($config);
+
+        // Check if the user passed a complete dsn to the configuration.
+        if (! empty($dsn)) {
+            return $dsn;
+        }
+
+        // Treat host option as array of hosts
+        $hosts = is_array($host) ? $host : [$host];
+
+        foreach ($hosts as &$host) {
+            // Check if we need to add a port to the host
+            if (strpos($host, ':') === false and isset($port)) {
+                $host = "{$host}:{$port}";
+            }
+        }
+
+        return "mongodb://" . implode(',', $hosts) . "/{$database}";
     }
 
     /**
-     * @inheritdoc
+     * Get the elapsed time since a given starting point.
+     *
+     * @param  int    $start
+     * @return float
      */
     public function getElapsedTime($start)
     {
@@ -226,7 +198,9 @@ class Connection extends BaseConnection
     }
 
     /**
-     * @inheritdoc
+     * Get the PDO driver name.
+     *
+     * @return string
      */
     public function getDriverName()
     {
@@ -234,34 +208,10 @@ class Connection extends BaseConnection
     }
 
     /**
-     * @inheritdoc
-     */
-    protected function getDefaultPostProcessor()
-    {
-        return new Query\Processor();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    protected function getDefaultQueryGrammar()
-    {
-        return new Query\Grammar();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    protected function getDefaultSchemaGrammar()
-    {
-        return new Schema\Grammar();
-    }
-
-    /**
      * Dynamically pass methods to the connection.
      *
-     * @param  string $method
-     * @param  array $parameters
+     * @param  string  $method
+     * @param  array   $parameters
      * @return mixed
      */
     public function __call($method, $parameters)

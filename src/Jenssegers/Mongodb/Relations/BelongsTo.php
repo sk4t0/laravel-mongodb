@@ -1,23 +1,9 @@
-<?php
-
-namespace Jenssegers\Mongodb\Relations;
-
-use Illuminate\Database\Eloquent\Builder;
+<?php namespace Jenssegers\Mongodb\Relations;
 
 class BelongsTo extends \Illuminate\Database\Eloquent\Relations\BelongsTo
 {
     /**
-     * Get the key for comparing against the parent key in "has" query.
-     *
-     * @return string
-     */
-    public function getHasCompareKey()
-    {
-        return $this->getOwnerKey();
-    }
-
-    /**
-     * @inheritdoc
+     * Set the base constraints on the relation query.
      */
     public function addConstraints()
     {
@@ -25,38 +11,22 @@ class BelongsTo extends \Illuminate\Database\Eloquent\Relations\BelongsTo
             // For belongs to relationships, which are essentially the inverse of has one
             // or has many relationships, we need to actually query on the primary key
             // of the related models matching on the foreign key that's on a parent.
-            $this->query->where($this->getOwnerKey(), '=', $this->parent->{$this->foreignKey});
+            $this->query->where($this->otherKey, '=', $this->parent->{$this->foreignKey});
         }
     }
 
     /**
-     * @inheritdoc
+     * Set the constraints for an eager load of the relation.
+     *
+     * @param  array  $models
      */
     public function addEagerConstraints(array $models)
     {
         // We'll grab the primary key name of the related models since it could be set to
         // a non-standard name and not "id". We will then construct the constraint for
         // our eagerly loading query so it returns the proper models from execution.
-        $key = $this->getOwnerKey();
+        $key = $this->otherKey;
 
         $this->query->whereIn($key, $this->getEagerModelKeys($models));
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
-    {
-        return $query;
-    }
-
-    /**
-     * Get the owner key with backwards compatible support.
-     *
-     * @return string
-     */
-    public function getOwnerKey()
-    {
-        return property_exists($this, 'ownerKey') ? $this->ownerKey : $this->otherKey;
     }
 }
